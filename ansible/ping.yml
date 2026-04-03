@@ -1,4 +1,5 @@
 ---
+# Quick connectivity check for all inventory hosts
 - name: Validate SSH connectivity
   hosts: all
   gather_facts: false

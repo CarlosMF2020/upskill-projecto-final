@@ -4,3 +4,4 @@ ansible/id_ed25519
 ansible/id_ed25519.pub
 ansible/id_rsa
 ansible/id_rsa.pub
+*.retry

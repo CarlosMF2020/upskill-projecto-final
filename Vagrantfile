@@ -1,5 +1,7 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-24.04"
+
+  # Default VM reliability/performance settings for local VirtualBox runs.
   config.vm.boot_timeout = 600
 
   config.vm.provider "virtualbox" do |vb|

@@ -1,0 +1,50 @@
+---
+# tasks file for roles/firewall
+- name: Preconfigure IPv4 autosave for iptables-persistent
+  debconf:
+    name: iptables-persistent
+    question: iptables-persistent/autosave_v4
+    value: 'true'
+    vtype: boolean
+
+- name: Install iptables-persistent
+  apt:
+    name: iptables-persistent
+    state: present
+
+- name: Allow loopback traffic
+  iptables:
+    chain: INPUT
+    in_interface: lo
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow established and related connections
+  iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow SSH
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ firewall_ssh_port }}"
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow configured TCP ports
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    jump: ACCEPT
+  loop: "{{ (firewall_allowed_tcp_ports + firewall_allowed_tcp_ports_extra) | unique }}"
+  notify: Save firewall rules
+
+- name: Set default INPUT policy to DROP
+  iptables:
+    chain: INPUT
+    policy: DROP
+  notify: Save firewall rules

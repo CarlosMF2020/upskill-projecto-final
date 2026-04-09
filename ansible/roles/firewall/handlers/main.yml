@@ -1,0 +1,5 @@
+---
+# handlers file for roles/firewall
+
+- name: Save firewall rules
+  command: netfilter-persistent save

@@ -1,0 +1,8 @@
+---
+# defaults file for roles/firewall
+
+firewall_ssh_port: 22
+firewall_allowed_tcp_ports:
+  - 80
+  - 443
+firewall_allowed_tcp_ports_extra: []

@@ -1,0 +1,43 @@
+---
+# tasks file for roles/sysadmin
+
+- name: Generate sysadmin SSH keypair
+  openssh_keypair:
+    path: "/home/vagrant/.ssh/technova_sysadmin"
+    type: ed25519
+    comment: "sysadmin@technova"
+    force: no
+  delegate_to: localhost
+
+- name: Copy sysadmin public key to shared keys directory
+  copy:
+    src: "/home/vagrant/.ssh/technova_sysadmin.pub"
+    dest: "{{ playbook_dir }}/keys/sysadmin/technova_sysadmin.pub"
+    remote_src: yes
+    unsafe_writes: yes
+  delegate_to: localhost
+
+- name: Create sysadmin user
+  user:
+    name: sysadmin
+    groups: sudo
+    append: yes
+    shell: /bin/bash
+    state: present
+    create_home: yes
+    password_lock: yes
+
+- name: Configure passwordless sudo for sysadmin
+  copy:
+    dest: /etc/sudoers.d/sysadmin
+    content: "sysadmin ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+
+- name: Add SSH keys for sysadmin user
+  authorized_key:
+    user: sysadmin
+    key: "{{ lookup('file', item) }}"
+  loop: "{{ query('fileglob', playbook_dir ~ '/keys/sysadmin/*.pub') }}"

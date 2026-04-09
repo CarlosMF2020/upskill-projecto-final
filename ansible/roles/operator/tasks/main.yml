@@ -1,0 +1,50 @@
+---
+# tasks file for roles/operator
+
+- name: Generate operator SSH keypair
+  openssh_keypair:
+    path: "/home/vagrant/.ssh/technova_operator"
+    type: ed25519
+    comment: "operator@technova"
+    force: no
+  delegate_to: localhost
+
+- name: Copy operator public key to shared keys directory
+  copy:
+    src: "/home/vagrant/.ssh/technova_operator.pub"
+    dest: "{{ playbook_dir }}/keys/operator/technova_operator.pub"
+    remote_src: yes
+    unsafe_writes: yes
+  delegate_to: localhost
+
+- name: Create operator group
+  group:
+    name: operator
+    state: present
+
+- name: Create operator user
+  user:
+    name: operator
+    group: operator
+    groups: operator
+    append: no
+    shell: /bin/bash
+    state: present
+    create_home: yes
+
+- name: Ensure operator has no sudoers entry
+  file:
+    path: /etc/sudoers.d/operator
+    state: absent
+
+- name: Ensure operator is not in sudo group
+  user:
+    name: operator
+    groups: operator
+    append: no
+
+- name: Add SSH keys for operator user
+  authorized_key:
+    user: operator
+    key: "{{ lookup('file', item) }}"
+  loop: "{{ query('fileglob', playbook_dir ~ '/keys/operator/*.pub') }}"

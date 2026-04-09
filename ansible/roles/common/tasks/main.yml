@@ -1,0 +1,16 @@
+---
+# tasks file for roles/common
+- name: Update apt cache if stale
+  apt:
+    update_cache: yes
+
+- name: Install essential packages
+  apt:
+    name:
+      - curl
+      - vim
+      - git
+      - htop
+      - net-tools
+    state: present
+    install_recommends: no

@@ -1,0 +1,54 @@
+---
+# tasks file for roles/nginx_container
+
+- name: Ensure Docker is installed
+  package:
+    name: docker-ce
+    state: present
+  become: yes
+
+- name: Ensure Docker is running and enabled
+  service:
+    name: docker
+    state: started
+    enabled: yes
+  become: yes
+
+- name: Ensure project directories exist
+  file:
+    # {{ Item }} and loop: are used to avoid 
+    # repeating the same "file:" hierarchy
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  # {{ Item }} and loop: are used to avoid 
+  # repeating the same "file:" hierarchy
+  loop:
+    - "{{ nginx_project_path }}"
+    - "{{ nginx_html_path }}"
+  become: yes
+
+- name: Deploy index.html
+  template:
+    src: index.html.j2
+    dest: "{{ nginx_html_path }}/index.html"
+  become: yes
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ nginx_project_path }}/docker-compose.yml"
+  become: yes
+
+- name: Install Docker Python SDK
+  apt:
+    name: python3-docker
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Run nginx container via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ nginx_project_path }}"
+    state: present
+  become: yes

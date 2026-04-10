@@ -1,0 +1,14 @@
+---
+- name: Webserver Setup
+  hosts: app
+  become: yes
+  
+  tasks:
+    - name: Ensure apt cache is updated
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - docker
+    - nginx_container

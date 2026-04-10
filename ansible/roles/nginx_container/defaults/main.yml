@@ -1,0 +1,9 @@
+---
+# defaults file for roles/nginx_container
+
+nginx_container_name: nginx
+nginx_host_port: 80
+nginx_container_port: 80
+nginx_html_path: /opt/nginx/html
+nginx_project_path: /opt/nginx
+nginx_index_content: "<h1>Jinja templating is working just fine!</h1>"

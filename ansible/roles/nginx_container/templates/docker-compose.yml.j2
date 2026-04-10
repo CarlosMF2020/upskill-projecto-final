@@ -1,0 +1,9 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: {{ nginx_container_name }}
+    ports:
+      - "{{ nginx_host_port }}:{{ nginx_container_port }}"
+    volumes:
+      - "{{ nginx_html_path }}:/usr/share/nginx/html:ro"
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+---
+# defaults file for roles/samba
+samba_users:
+  - name: sysadmin
+    password: Sysadmin2026!
+  - name: operator
+    password: Operator2026!

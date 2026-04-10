@@ -1,0 +1,90 @@
+---
+# tasks file for roles/samba
+- name: Installing Samba
+  apt:
+    name: samba
+    state: present
+
+- name: Create sambashare group
+  group:
+    name: sambashare
+    state: present
+
+- name: Add Samba users to sambashare group
+  user:
+    name: "{{ item.name }}"
+    groups: sambashare
+    append: yes
+  loop: "{{ samba_users }}"
+
+- name: Created shared directories  
+  file:
+    path: /srv/samba/share
+    state: directory
+    mode: '0775'
+    owner: root
+    group: sambashare
+
+- name: Copy smb.conf
+  copy:
+    src: smb.conf
+    dest: /etc/samba/smb.conf
+  notify: Restart Samba
+
+- name: Allow Samba TCP port 445 (SMB)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "445"
+    source: "192.168.10.0/24"
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow Samba TCP port 139 (NetBIOS session)
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "139"
+    source: "192.168.10.0/24"
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow Samba UDP port 137 (NetBIOS name)
+  iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "137"
+    source: "192.168.10.0/24"
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Allow Samba UDP port 138 (NetBIOS datagram)
+  iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "138"
+    source: "192.168.10.0/24"
+    jump: ACCEPT
+  notify: Save firewall rules
+
+- name: Set Samba password for existing users
+  shell: |
+    (echo "{{ item.password }}"; echo "{{ item.password }}") | smbpasswd -a -s {{ item.name }}
+  loop: "{{ samba_users }}"
+  no_log: true
+
+- name: Enable Samba users
+  command: smbpasswd -e {{ item.name }}
+  loop: "{{ samba_users }}"
+
+- name: Start smbd
+  service:
+    name: smbd
+    state: started
+    enabled: true
+
+- name: Start nmbd
+  service:
+    name: nmbd
+    state: started
+    enabled: true

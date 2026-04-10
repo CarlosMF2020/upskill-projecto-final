@@ -1,0 +1,12 @@
+---
+# handlers file for roles/samba
+- name: Restart Samba
+  service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - smbd
+    - nmbd
+
+- name: Save firewall rules
+  command: netfilter-persistent save

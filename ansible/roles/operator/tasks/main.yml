@@ -1,12 +1,36 @@
 ---
 # tasks file for roles/operator
 
-- name: Generate operator SSH keypair
+- name: Ensure operator shared keys directory exists
+  file:
+    path: "{{ playbook_dir }}/keys/operator"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+
+- name: Remove temporary operator key files (before)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_fileglob:
+    - "{{ playbook_dir }}/keys/operator/tmp*"
+  delegate_to: localhost
+
+- name: Generate operator SSH keypair (idempotent)
   openssh_keypair:
     path: "/home/vagrant/.ssh/technova_operator"
     type: ed25519
     comment: "operator@technova"
     force: no
+  delegate_to: localhost
+  
+- name: Remove temporary operator key files (after)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_fileglob:
+    - "{{ playbook_dir }}/keys/operator/tmp*"
   delegate_to: localhost
 
 - name: Copy operator public key to shared keys directory
@@ -43,7 +67,7 @@
     groups: operator
     append: no
 
-- name: Add SSH keys for operator user
+- name: Add SSH keys to operator authorized_keys
   authorized_key:
     user: operator
     key: "{{ lookup('file', item) }}"

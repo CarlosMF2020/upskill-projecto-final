@@ -5,8 +5,8 @@ set -eu
 echo "*** [control-node] Updating apt cache"
 apt-get update -y
 
-echo "*** [control-node] Installing Ansible + OpenSSH server"
-apt-get install -y ansible openssh-server
+echo "*** [control-node] Installing Ansible + OpenSSH server + Docker Python SDK"
+apt-get install -y ansible openssh-server python3-docker
 systemctl enable --now ssh
 
 echo "*** [control-node] Packages installed successfully"

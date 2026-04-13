@@ -1,0 +1,16 @@
+---
+# tasks file for roles/phpmyadmin_container
+
+- name: Create phpMyAdmin container
+  community.docker.docker_container:
+    name: phpmyadmin
+    image: phpmyadmin/phpmyadmin
+    restart_policy: always
+    ports:
+      - "8088:80"
+    env:
+      PMA_HOST: "mysql"
+      PMA_PORT: "3306"
+    
+    networks:
+      - name: webserver_network

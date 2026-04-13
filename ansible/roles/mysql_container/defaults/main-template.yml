@@ -1,0 +1,13 @@
+---
+# defaults file for roles/mysql_container
+
+mysql_container_name: mysql
+mysql_image: mysql:8.0
+mysql_root_password:
+mysql_database:
+mysql_user:
+mysql_password:
+mysql_port: 3306
+
+mysql_volume: mysql_data
+webserver_network: webserver_network

@@ -5,3 +5,5 @@ ansible/id_ed25519.pub
 ansible/id_rsa
 ansible/id_rsa.pub
 *.retry
+ansible/roles/mysql_container/defaults/main.yml
+ansible/roles/nginx_container/templates/index.php

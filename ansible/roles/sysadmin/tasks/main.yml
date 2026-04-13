@@ -1,12 +1,36 @@
 ---
 # tasks file for roles/sysadmin
 
-- name: Generate sysadmin SSH keypair
+- name: Ensure sysadmin shared keys directory exists
+  file:
+    path: "{{ playbook_dir }}/keys/sysadmin"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+
+- name: Remove temporary sysadmin key files (before)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_fileglob:
+    - "{{ playbook_dir }}/keys/sysadmin/tmp*"
+  delegate_to: localhost
+
+- name: Generate sysadmin SSH keypair (idempotent)
   openssh_keypair:
     path: "/home/vagrant/.ssh/technova_sysadmin"
     type: ed25519
     comment: "sysadmin@technova"
     force: no
+  delegate_to: localhost
+  
+- name: Remove temporary sysadmin key files (after)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_fileglob:
+    - "{{ playbook_dir }}/keys/sysadmin/tmp*"
   delegate_to: localhost
 
 - name: Copy sysadmin public key to shared keys directory
@@ -36,7 +60,7 @@
     mode: '0440'
     validate: '/usr/sbin/visudo -cf %s'
 
-- name: Add SSH keys for sysadmin user
+- name: Add SSH keys to sysadmin authorized_keys
   authorized_key:
     user: sysadmin
     key: "{{ lookup('file', item) }}"

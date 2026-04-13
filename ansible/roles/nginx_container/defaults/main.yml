@@ -2,8 +2,15 @@
 # defaults file for roles/nginx_container
 
 nginx_container_name: nginx
-nginx_host_port: 80
+nginx_host_port: 9090
 nginx_container_port: 80
-nginx_html_path: /opt/nginx/html
-nginx_project_path: /opt/nginx
+
+# Directory: html file for webserver
+nginx_html_path: /opt/webserver/html
+
+# Project directory path
+nginx_project_path: /opt/webserver
+
 nginx_index_content: "<h1>Jinja templating is working just fine!</h1>"
+
+webserver_network: webserver_network

@@ -1,0 +1,47 @@
+---
+# tasks file for roles/mysql_container
+
+- name: Ensure Docker is installed
+  ansible.builtin.package:
+    name: docker-ce
+    state: present
+
+- name: Ensure Docker service is running
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create Docker network
+  community.docker.docker_network:
+    name: "{{ webserver_network }}"
+    state: present
+
+- name: Create MySQL volume
+  community.docker.docker_volume:
+    name: "{{ mysql_volume }}"
+    state: present
+
+- name: Deploy MySQL container
+  community.docker.docker_container:
+    name: "{{ mysql_container_name }}"
+    image: "{{ mysql_image }}"
+    state: started
+    restart_policy: always
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+      MYSQL_DATABASE: "{{ mysql_database }}"
+      MYSQL_USER: "{{ mysql_user }}"
+      MYSQL_PASSWORD: "{{ mysql_password }}"
+    ports:
+      - "{{ mysql_port }}:3306"
+    volumes:
+      - "{{ mysql_volume }}:/var/lib/mysql"
+      - "/opt/mysql/my.cnf:/etc/mysql/conf.d/my.cnf"
+    networks:
+      - name: "{{ webserver_network }}"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

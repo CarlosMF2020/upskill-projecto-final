@@ -11,4 +11,9 @@
 
   roles:
     - docker
+    # Database container must be created first because 
+    # it creates the network used by the web server
+    - mysql_container
+    - phpmyadmin_container
     - nginx_container
+  

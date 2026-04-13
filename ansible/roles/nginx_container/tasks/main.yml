@@ -14,6 +14,11 @@
     enabled: yes
   become: yes
 
+- name: Pull PHP 8.3 FPM image
+  community.docker.docker_image:
+    name: php:8.3-fpm
+    source: pull  
+
 - name: Ensure project directories exist
   file:
     # {{ Item }} and loop: are used to avoid 
@@ -28,27 +33,56 @@
     - "{{ nginx_html_path }}"
   become: yes
 
-- name: Deploy index.html
-  template:
-    src: index.html.j2
-    dest: "{{ nginx_html_path }}/index.html"
-  become: yes
+- name: Ensure html directory exists
+  file:
+    path: "{{ nginx_html_path }}"
+    state: directory
+    mode: '0755'
 
-- name: Deploy docker-compose.yml
+- name: Check if index.php exists
+  stat:
+    path: "{{ nginx_html_path }}/index.php"
+  register: index_php_file
+
+- name: Deploy index.php if it doesn't exist
+  template:
+    src: index.php
+    dest: "{{ nginx_html_path }}"
+  become: yes
+  when: not index_php_file.stat.exists
+
+- name: Ensure nginx directory exists
+  file:
+    path: "{{ nginx_project_path }}/nginx"
+    state: directory
+
+- name: Ensure default.conf is not a directory
+  file:
+    path: "{{ nginx_project_path }}/nginx/default.conf"
+    state: absent
+
+- name: Deploy nginx config
+  template:
+    src: default.conf.j2
+    dest: "{{ nginx_project_path }}/nginx/default.conf"
+
+- name: Deploy docker-compose file
   template:
     src: docker-compose.yml.j2
     dest: "{{ nginx_project_path }}/docker-compose.yml"
-  become: yes
 
-- name: Install Docker Python SDK
-  apt:
-    name: python3-docker
-    state: present
-    update_cache: yes
-  become: yes
-
-- name: Run nginx container via Docker Compose
+- name: Start stack
   community.docker.docker_compose_v2:
     project_src: "{{ nginx_project_path }}"
     state: present
   become: yes
+
+- name: Install mysqli extension in PHP container
+  command: >
+    docker exec webserver-php83-1 docker-php-ext-install mysqli
+
+- name: Restart PHP container
+  community.docker.docker_container:
+    name: webserver-php83-1
+    state: started
+    restart: true

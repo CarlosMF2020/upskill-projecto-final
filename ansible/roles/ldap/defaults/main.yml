@@ -1,0 +1,7 @@
+---
+# defaults file for roles/ldap
+ldap_bootstrap_users: true
+ldap_domain: technova.local
+ldap_base_dn: dc=technova,dc=local
+ldap_organization: TechNova
+ldap_admin_password: LdapAdmin2026!

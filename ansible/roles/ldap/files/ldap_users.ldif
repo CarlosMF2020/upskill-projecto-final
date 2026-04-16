@@ -1,0 +1,29 @@
+# Utilizador técnico sysadmin
+dn: uid=sysadmin,ou=users,dc=technova,dc=local
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Sys Admin
+sn: Admin
+uid: sysadmin
+mail: sysadmin@technova.local
+uidNumber: 10000
+gidNumber: 5000
+homeDirectory: /home/sysadmin
+loginShell: /bin/bash
+userPassword: Sysadmin2026!
+
+# Utilizador técnico operator
+dn: uid=operator,ou=users,dc=technova,dc=local
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Operator
+sn: TechNova
+uid: operator
+mail: operator@technova.local
+uidNumber: 10001
+gidNumber: 5000
+homeDirectory: /home/operator
+loginShell: /bin/bash
+userPassword: Operator2026!

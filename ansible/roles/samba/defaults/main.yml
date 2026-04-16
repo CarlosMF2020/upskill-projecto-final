@@ -5,3 +5,7 @@ samba_users:
     password: Sysadmin2026!
   - name: operator
     password: Operator2026!
+
+# Credenciais LDAP — devem corresponder às definidas no role ldap
+ldap_base_dn: dc=technova,dc=local
+ldap_admin_password: LdapAdmin2026!

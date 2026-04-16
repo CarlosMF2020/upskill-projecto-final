@@ -1,0 +1,294 @@
+---
+# tasks file for roles/ldap
+
+# -------------------------------
+# This role installs and configures OpenLDAP on the LDAP server.
+# -------------------------------
+
+- name: Install OpenLDAP and dependencies
+  apt:
+    name:
+      - slapd
+      - ldap-utils
+      - debconf-utils
+      - python3-ldap
+    state: present
+    update_cache: yes
+
+# -------------------------------
+# Preseed slapd (non-interactive)
+# -------------------------------
+- name: Configure LDAP base domain
+  debconf:
+    name: slapd
+    question: "{{ item.question }}"
+    value: "{{ item.value }}"
+    vtype: "{{ item.vtype }}"
+  loop:
+    - { question: "slapd/domain",        value: "technova.local", vtype: "string"   }
+    - { question: "shared/organization", value: "TechNova",       vtype: "string"   }
+    - { question: "slapd/password1",     value: "manager",        vtype: "password" }
+    - { question: "slapd/password2",     value: "manager",        vtype: "password" }
+
+# -------------------------------
+# Controlled reset — only on first provision
+# If LDAP database already exists, skip reset to preserve data
+# -------------------------------
+- name: Check if LDAP database already exists
+  stat:
+    path: /var/lib/ldap/data.mdb
+  register: ldap_db
+
+- name: Stop slapd
+  service:
+    name: slapd
+    state: stopped
+  when: not ldap_db.stat.exists
+
+- name: Remove old slapd config
+  file:
+    path: /etc/ldap/slapd.d
+    state: absent
+  when: not ldap_db.stat.exists
+
+- name: Remove old LDAP database
+  file:
+    path: /var/lib/ldap
+    state: absent
+  when: not ldap_db.stat.exists
+
+- name: Reconfigure slapd
+  command: dpkg-reconfigure -f noninteractive slapd
+  when: not ldap_db.stat.exists
+
+- name: Start slapd
+  service:
+    name: slapd
+    state: started
+    enabled: true
+
+- name: Wait for LDAP to be available
+  wait_for:
+    host: 127.0.0.1
+    port: 389
+    timeout: 30
+
+# -------------------------------
+# LDAP Schemas
+# Note: In Ubuntu 24.04, the cosine, nis, and inetorgperson schemas
+# are already included by default in slapd after dpkg-reconfigure.
+# The tasks below are idempotent, they ignore if they already exist.
+# -------------------------------
+- name: Load cosine schema
+  command: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/cosine.ldif
+  register: schema_cosine
+  failed_when: schema_cosine.rc != 0 and 'Already exists' not in schema_cosine.stderr and 'Duplicate' not in schema_cosine.stderr
+  changed_when: schema_cosine.rc == 0
+
+- name: Load nis schema
+  command: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/nis.ldif
+  register: schema_nis
+  failed_when: schema_nis.rc != 0 and 'Already exists' not in schema_nis.stderr and 'Duplicate' not in schema_nis.stderr
+  changed_when: schema_nis.rc == 0
+
+- name: Load inetorgperson schema
+  command: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/inetorgperson.ldif
+  register: schema_inetorg
+  failed_when: schema_inetorg.rc != 0 and 'Already exists' not in schema_inetorg.stderr and 'Duplicate' not in schema_inetorg.stderr
+  changed_when: schema_inetorg.rc == 0
+
+# -------------------------------
+# Apply base structure
+# -------------------------------
+- name: Copy LDAP base structure
+  copy:
+    src: ldap_base.ldif
+    dest: /tmp/ldap_base.ldif
+
+- name: Apply LDAP base structure
+  command: >
+    ldapadd -x
+    -D "cn=admin,dc=technova,dc=local"
+    -w manager
+    -f /tmp/ldap_base.ldif
+  register: ldap_base
+  failed_when: ldap_base.rc != 0 and 'Already exists' not in ldap_base.stderr
+  changed_when: ldap_base.rc == 0
+
+# -------------------------------
+# Apply LDAP groups
+# -------------------------------
+- name: Copy LDAP groups
+  copy:
+    src: ldap_groups.ldif
+    dest: /tmp/ldap_groups.ldif
+
+- name: Apply LDAP groups
+  command: >
+    ldapadd -x
+    -D "cn=admin,dc=technova,dc=local"
+    -w manager
+    -f /tmp/ldap_groups.ldif
+  register: ldap_groups
+  failed_when: ldap_groups.rc != 0 and 'Already exists' not in ldap_groups.stderr
+  changed_when: ldap_groups.rc == 0
+
+# -------------------------------
+# Unique uidNumber constraint
+# Prevents duplicate uidNumber across all users
+# -------------------------------
+- name: Copy unique uidNumber constraint
+  copy:
+    src: ldap_unique_uid.ldif
+    dest: /tmp/ldap_unique_uid.ldif
+
+- name: Apply unique uidNumber constraint
+  command: ldapadd -Y EXTERNAL -H ldapi:/// -f /tmp/ldap_unique_uid.ldif
+  register: unique_uid
+  failed_when: unique_uid.rc != 0 and 'Already exists' not in unique_uid.stderr
+  changed_when: unique_uid.rc == 0
+
+# -------------------------------
+# Bootstrap users (technicians - sysadmin/operator)
+# -------------------------------
+- name: Copy LDAP bootstrap users
+  copy:
+    src: ldap_users.ldif
+    dest: /tmp/ldap_users.ldif
+  when: ldap_bootstrap_users | default(false)
+
+- name: Apply LDAP bootstrap users
+  command: >
+    ldapadd -x
+    -D "cn=admin,dc=technova,dc=local"
+    -w manager
+    -f /tmp/ldap_users.ldif
+  register: ldap_users
+  failed_when: ldap_users.rc != 0 and 'Already exists' not in ldap_users.stderr
+  changed_when: ldap_users.rc == 0
+  when: ldap_bootstrap_users | default(false)
+
+# -------------------------------
+# Ensure bootstrap user passwords are stored as SSHA (idempotent)
+# -------------------------------
+- name: Set sysadmin LDAP password (SSHA)
+  command: >
+    ldappasswd -x
+    -H ldap://127.0.0.1
+    -D "cn=admin,dc=technova,dc=local"
+    -w manager
+    -s "Sysadmin2026!"
+    "uid=sysadmin,ou=users,dc=technova,dc=local"
+  changed_when: false
+  when: ldap_bootstrap_users | default(false)
+
+- name: Set operator LDAP password (SSHA)
+  command: >
+    ldappasswd -x
+    -H ldap://127.0.0.1
+    -D "cn=admin,dc=technova,dc=local"
+    -w manager
+    -s "Operator2026!"
+    "uid=operator,ou=users,dc=technova,dc=local"
+  changed_when: false
+  when: ldap_bootstrap_users | default(false)
+
+# -------------------------------
+# ACL — sysadmin with write access to LDAP (to manage users via LAM)
+# -------------------------------
+- name: Copy sysadmin ACL
+  copy:
+    src: ldap_sysadmin_acl.ldif
+    dest: /tmp/ldap_sysadmin_acl.ldif
+
+- name: Apply write ACL for sysadmin
+  command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/ldap_sysadmin_acl.ldif
+  register: sysadmin_acl
+  failed_when: sysadmin_acl.rc != 0 and 'Type or value exists' not in sysadmin_acl.stderr
+  changed_when: sysadmin_acl.rc == 0
+
+# -------------------------------
+# LAM — LDAP Account Manager
+# Replaces phpLDAPadmin — supports user creation
+# with inetOrgPerson + posixAccount simultaneously
+# -------------------------------
+- name: Remove phpLDAPadmin
+  apt:
+    name: phpldapadmin
+    state: absent
+
+- name: Copy LAM installation script
+  copy:
+    src: "{{ playbook_dir }}/../scripts/ldap/ldap_setup.sh"
+    dest: /tmp/ldap_setup.sh
+    mode: '0755'
+
+- name: Execute LAM installation
+  command: bash /tmp/ldap_setup.sh
+  args:
+    creates: /etc/nginx/sites-available/lam
+
+# -------------------------------
+# LAM Access Control
+# Restrict LAM login to sysadmin only
+# operator remains visible in user listings but cannot login
+# -------------------------------
+- name: Restrict LAM login to sysadmin only — Admins
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^Admins:'
+    line: 'Admins: uid=sysadmin,ou=users,dc=technova,dc=local'
+  become: true
+
+- name: Restrict LAM login to sysadmin only — loginSearchFilter
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^loginSearchFilter:'
+    line: 'loginSearchFilter: (&(uid=%USER%)(uid=sysadmin))'
+  become: true
+
+# -------------------------------
+# LAM Lamdaemon configuration
+# Allows LAM to delete users via SSH
+# -------------------------------
+- name: Configure LAM script path (lamdaemon)
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^scriptPath:'
+    line: 'scriptPath: /usr/local/sbin/lamdaemon'
+  become: true
+
+- name: Configure LAM script server (lamdaemon)
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^scriptServer:'
+    line: 'scriptServer: 192.168.10.10'
+  become: true
+
+- name: Configure LAM script user (lamdaemon)
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^scriptUserName:'
+    line: 'scriptUserName: sysadmin'
+  become: true
+
+- name: Configure LAM SSH key for lamdaemon
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^scriptSSHKey:'
+    line: 'scriptSSHKey: /var/www/.ssh/id_ed25519'
+  become: true
+
+# -------------------------------
+# LAM config password (Sysadmin2026!)
+# -------------------------------
+- name: Set LAM config password
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^Passwd:'
+    line: 'Passwd: Sysadmin2026!'
+  become: true
+
+- name: Inform LAM URL
+  debug:
+    msg: "LDAP user management: http://192.168.10.10 — Login: sysadmin only"

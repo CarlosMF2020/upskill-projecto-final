@@ -1,0 +1,5 @@
+dn: cn=smbusers,ou=groups,dc=technova,dc=local
+objectClass: top
+objectClass: posixGroup
+cn: smbusers
+gidNumber: 5000

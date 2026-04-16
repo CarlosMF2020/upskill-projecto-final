@@ -8,6 +8,12 @@ Vagrant.configure("2") do |config|
     vb.memory = 1024
     vb.cpus = 1
   end
+
+  # Vagrant-cachier settings to speed up provisioning by caching package downloads.
+  if Vagrant.has_plugin?("vagrant-cachier")
+    config.cache.scope = :box
+    config.cache.enable :apt
+  end
  
   # Automation Server (control node)
   config.vm.define "auto" do |auto|

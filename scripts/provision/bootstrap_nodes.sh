@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -eu
 
+# Switch to Portuguese mirror for better reliability
+sed -i 's|http://us.archive.ubuntu.com|http://pt.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources
+sed -i 's|http://archive.ubuntu.com|http://pt.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources
+
+# Disable apt translations to speed up update
+echo 'Acquire::Languages "none";' > /etc/apt/apt.conf.d/99translations
+echo 'Acquire::GzipIndexes "true";' >> /etc/apt/apt.conf.d/99translations
+
 # Install required packages
 echo "*** [node] Updating apt cache"
 apt update -y

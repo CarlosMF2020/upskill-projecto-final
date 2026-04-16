@@ -1,81 +1,158 @@
 ---
 # tasks file for roles/samba
-- name: Installing Samba
+
+- name: Install Samba and dependencies
   apt:
-    name: samba
+    name:
+      - samba
+      - samba-dsdb-modules
+      - sssd
+      - libnss-sss
+      - libpam-sss
+      - libpam-runtime
+      - ldap-utils
     state: present
 
-- name: Create sambashare group
-  group:
-    name: sambashare
-    state: present
-
-- name: Add Samba users to sambashare group
-  user:
-    name: "{{ item.name }}"
-    groups: sambashare
-    append: yes
-  loop: "{{ samba_users }}"
-
-- name: Created shared directories  
-  file:
-    path: /srv/samba/share
-    state: directory
-    mode: '0775'
+- name: Configure SSSD for LDAP
+  copy:
+    dest: /etc/sssd/sssd.conf
     owner: root
-    group: sambashare
+    group: root
+    mode: '0600'
+    content: |
+      [sssd]
+      services = nss, pam
+      domains = TECHNOVA
 
-- name: Copy smb.conf
+      [domain/TECHNOVA]
+      id_provider = ldap
+      auth_provider = ldap
+      ldap_uri = ldap://127.0.0.1
+      ldap_search_base = dc=technova,dc=local
+      ldap_default_bind_dn = cn=admin,dc=technova,dc=local
+      ldap_default_authtok = manager
+      ldap_id_use_start_tls = false
+      ldap_tls_reqcert = never
+      cache_credentials = true
+      enumerate = true
+
+- name: Configure NSS to use SSSD
+  lineinfile:
+    path: /etc/nsswitch.conf
+    regexp: '^{{ item.key }}:'
+    line: '{{ item.key }}: {{ item.value }}'
+  loop:
+    - { key: 'passwd', value: 'files sss' }
+    - { key: 'group',  value: 'files sss' }
+    - { key: 'shadow', value: 'files sss' }
+
+- name: Start and enable SSSD
+  service:
+    name: sssd
+    state: started
+    enabled: true
+
+- name: Enable PAM for Samba
+  command: pam-auth-update --enable sss --force
+  changed_when: false
+
+# -------------------------------
+# Samba LDAP Schema
+# -------------------------------
+- name: Copy Samba LDAP schema
+  copy:
+    src: /usr/share/doc/samba/examples/LDAP/samba.ldif
+    dest: /tmp/samba.ldif
+    remote_src: yes
+
+- name: Load Samba LDAP schema
+  command: ldapadd -Y EXTERNAL -H ldapi:/// -f /tmp/samba.ldif
+  register: samba_schema
+  failed_when: >
+    samba_schema.rc != 0 and
+    'Already exists' not in samba_schema.stderr and
+    'Duplicate' not in samba_schema.stderr
+  changed_when: samba_schema.rc == 0
+
+# -------------------------------
+# Samba Domain in LDAP
+# Required for ldapsam backend
+# -------------------------------
+- name: Copy temporary smb.conf with tdbsam to get SID
+  copy:
+    dest: /etc/samba/smb.conf
+    content: |
+      [global]
+      workgroup = TECHNOVA
+      passdb backend = tdbsam
+      security = user
+
+- name: Start smbd temporarily with tdbsam
+  service:
+    name: smbd
+    state: restarted
+
+- name: Wait for smbd to be ready
+  wait_for:
+    port: 445
+    host: 127.0.0.1
+    timeout: 30
+
+- name: Get Samba SID
+  command: net getlocalsid
+  register: samba_sid_raw
+  changed_when: false
+
+- name: Extract SID value
+  set_fact:
+    samba_sid: "{{ samba_sid_raw.stdout | regex_search('S-1-5-[0-9-]+') }}"
+
+- name: Stop smbd before switching to ldapsam
+  service:
+    name: smbd
+    state: stopped
+
+- name: Create Samba domain entry in LDAP
+  shell: |
+    ldapsearch -x -H ldap://127.0.0.1 \
+      -D "cn=admin,dc=technova,dc=local" \
+      -w manager \
+      -b "dc=technova,dc=local" \
+      "(sambaDomainName=TECHNOVA)" | grep -q "sambaDomainName"
+    if [ $? -ne 0 ]; then
+      ldapadd -x \
+        -D "cn=admin,dc=technova,dc=local" \
+        -w manager << EOF
+    dn: sambaDomainName=TECHNOVA,dc=technova,dc=local
+    objectClass: sambaDomain
+    sambaDomainName: TECHNOVA
+    sambaSID: {{ samba_sid }}
+    sambaNextUserRid: 1000
+    sambaNextGroupRid: 1000
+    sambaNextRid: 1000
+    sambaAlgorithmicRidBase: 1000
+    EOF
+    fi
+  register: domain_entry
+  changed_when: "'adding new entry' in domain_entry.stdout"
+
+- name: Set LDAP admin password for Samba
+  command: smbpasswd -w manager
+  no_log: true
+
+- name: Copy final smb.conf with ldapsam
   copy:
     src: smb.conf
     dest: /etc/samba/smb.conf
   notify: Restart Samba
 
-- name: Allow Samba TCP port 445 (SMB)
-  iptables:
-    chain: INPUT
-    protocol: tcp
-    destination_port: "445"
-    source: "192.168.10.0/24"
-    jump: ACCEPT
-  notify: Save firewall rules
-
-- name: Allow Samba TCP port 139 (NetBIOS session)
-  iptables:
-    chain: INPUT
-    protocol: tcp
-    destination_port: "139"
-    source: "192.168.10.0/24"
-    jump: ACCEPT
-  notify: Save firewall rules
-
-- name: Allow Samba UDP port 137 (NetBIOS name)
-  iptables:
-    chain: INPUT
-    protocol: udp
-    destination_port: "137"
-    source: "192.168.10.0/24"
-    jump: ACCEPT
-  notify: Save firewall rules
-
-- name: Allow Samba UDP port 138 (NetBIOS datagram)
-  iptables:
-    chain: INPUT
-    protocol: udp
-    destination_port: "138"
-    source: "192.168.10.0/24"
-    jump: ACCEPT
-  notify: Save firewall rules
-
-- name: Set Samba password for existing users
-  shell: |
-    (echo "{{ item.password }}"; echo "{{ item.password }}") | smbpasswd -a -s {{ item.name }}
-  loop: "{{ samba_users }}"
-  no_log: true
-
-- name: Enable Samba users
-  command: smbpasswd -e {{ item.name }}
-  loop: "{{ samba_users }}"
+- name: Create Samba share directory
+  file:
+    path: /srv/samba/share
+    state: directory
+    owner: root
+    group: root
+    mode: '0775'
 
 - name: Start smbd
   service:
@@ -88,3 +165,53 @@
     name: nmbd
     state: started
     enabled: true
+
+# -------------------------------
+# Register technical users in Samba with their own passwords
+# sysadmin and operator are excluded from the cron sync
+# so they must be registered explicitly here
+# -------------------------------
+- name: Register sysadmin in Samba
+  shell: |
+    if ! pdbedit -L | grep -q "^sysadmin:"; then
+      (echo "Sysadmin2026!"; echo "Sysadmin2026!") | smbpasswd -a -s sysadmin
+      smbpasswd -e sysadmin
+    fi
+  changed_when: false
+  when: ldap_bootstrap_users | default(false)
+
+- name: Register operator in Samba
+  shell: |
+    if ! pdbedit -L | grep -q "^operator:"; then
+      (echo "Operator2026!"; echo "Operator2026!") | smbpasswd -a -s operator
+      smbpasswd -e operator
+    fi
+  changed_when: false
+  when: ldap_bootstrap_users | default(false)
+
+# -------------------------------
+# Samba User Sync
+# Automatically syncs LDAP users to Samba via cron
+# -------------------------------
+- name: Copy Samba sync script
+  copy:
+    src: "{{ playbook_dir }}/../scripts/samba/sync_samba_users.sh"
+    dest: /usr/local/bin/sync_samba_users.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create Samba sync log file
+  file:
+    path: /var/log/samba_sync.log
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Schedule Samba user sync via cron
+  cron:
+    name: "Sync LDAP users to Samba"
+    minute: "*/2"
+    job: "/usr/local/bin/sync_samba_users.sh >> /var/log/samba_sync.log 2>&1"
+    user: root

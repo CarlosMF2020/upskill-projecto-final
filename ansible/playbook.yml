@@ -11,4 +11,7 @@
 - hosts: infra
   become: true
   roles:
+    - ldap
     - samba
+
+  

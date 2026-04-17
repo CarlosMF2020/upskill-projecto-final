@@ -1,0 +1,15 @@
+$TTL    604800
+@       IN      SOA     ns.technova.pt. admin.technova.pt. (
+                        2         ; Serial
+                        604800    ; Refresh
+                        86400     ; Retry
+                        2419200   ; Expire
+                        604800 )  ; Negative Cache TTL
+
+; Name servers
+@       IN      NS      ns.technova.pt.
+
+; A records
+ns      IN      A       192.168.10.10
+@       IN      A       192.168.10.20
+www     IN      A       192.168.10.20

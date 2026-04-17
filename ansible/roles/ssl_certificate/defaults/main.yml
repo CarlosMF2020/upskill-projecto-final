@@ -1,0 +1,17 @@
+---
+# defaults file for ./roles/ssl_certificate
+
+# ssl_cert_path: /opt/webserver/nginx/ssl
+# ssl_cert_name: nginx_ssl_cert
+
+# ssl_common_name: "{{ inventory_hostname }}"
+# ssl_country: "PT"
+# ssl_state: "Porto"
+# ssl_locality: "Porto"
+# ssl_org: "technova.pt"
+# ssl_org_unit: "SysAdmin"
+
+# ssl_valid_days: 365
+
+# ssl_key_size: 2048
+# ssl_force_regenerate: false

@@ -3,6 +3,19 @@ set -eu
 
 # Install required packages
 echo "*** [node] Updating apt cache"
+tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null <<'EOF'
+Types: deb
+URIs: http://archive.ubuntu.com/ubuntu/
+Suites: noble noble-updates noble-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+Types: deb
+URIs: http://security.ubuntu.com/ubuntu/
+Suites: noble-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
 apt update -y
 
 echo "*** [node] Installing Python + OpenSSH server"

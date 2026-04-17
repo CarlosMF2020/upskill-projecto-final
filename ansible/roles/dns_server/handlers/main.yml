@@ -1,0 +1,7 @@
+---
+# handlers file for ./roles/dns_server
+
+- name: restart bind9
+  service:
+    name: bind9
+    state: restarted

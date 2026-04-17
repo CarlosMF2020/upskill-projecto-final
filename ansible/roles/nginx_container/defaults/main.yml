@@ -2,8 +2,12 @@
 # defaults file for roles/nginx_container
 
 nginx_container_name: nginx
-nginx_host_port: 9090
+
+nginx_host_port: 80
 nginx_container_port: 80
+
+nginx_host_port_https: 443
+nginx_container_port_https: 443
 
 # Directory: html file for webserver
 nginx_html_path: /opt/webserver/html
@@ -14,3 +18,6 @@ nginx_project_path: /opt/webserver
 nginx_index_content: "<h1>Jinja templating is working just fine!</h1>"
 
 webserver_network: webserver_network
+
+ssl_cert_path: /etc/nginx/ssl
+ssl_cert_name: nginx_ssl_cert

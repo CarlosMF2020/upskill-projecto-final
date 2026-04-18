@@ -1,0 +1,42 @@
+---
+# tasks file for ./roles/ssl_certificate
+
+- name: Create SSL directory
+  ansible.builtin.file:
+    path: "{{ ssl_cert_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Generate private key
+  community.crypto.openssl_privatekey:
+    path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.key"
+    size: "{{ ssl_key_size }}"
+    type: RSA
+    mode: '0600'
+  register: private_key
+  # notify: restart nginx container
+
+- name: Generate CSR
+  community.crypto.openssl_csr:
+    path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.csr"
+    privatekey_path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.key"
+    common_name: "{{ ssl_common_name }}"
+    country_name: "{{ ssl_country }}"
+    state_or_province_name: "{{ ssl_state }}"
+    locality_name: "{{ ssl_locality }}"
+    organization_name: "{{ ssl_org }}"
+    organizational_unit_name: "{{ ssl_org_unit }}"
+  # notify: restart nginx container
+
+- name: Generate self-signed certificate
+  community.crypto.x509_certificate:
+    path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.crt"
+    privatekey_path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.key"
+    csr_path: "{{ ssl_cert_path }}/{{ ssl_cert_name }}.csr"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ ssl_valid_days }}d"
+    selfsigned_not_before: "+0s"
+  register: cert
+  # notify: restart nginx container

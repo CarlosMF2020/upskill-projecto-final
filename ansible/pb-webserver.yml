@@ -15,5 +15,28 @@
     # it creates the network used by the web server
     - mysql_container
     - phpmyadmin_container
+
+    - role: ssl_certificate
+      vars:
+        # Path to save SSL certificates and Keys on host
+        # (Create a volume if using containers and map this 
+        # path with the one used by your container)
+        ssl_cert_path: /opt/webserver/nginx/ssl
+
+        # Name of the files to create 
+        # (ex: ssl_cert_name.crt + ssl_cert_name.csr + ssl_cert_name.key)
+        ssl_cert_name: nginx_ssl_cert
+
+        ssl_common_name: "{{ inventory_hostname }}"
+        ssl_country: "PT"
+        ssl_state: "Porto"
+        ssl_locality: "Maia"
+        ssl_org: "technova.pt"
+        ssl_org_unit: "SysAdmin"
+
+        ssl_valid_days: 365
+
+        ssl_key_size: 2048
+        ssl_force_regenerate: false
+        
     - nginx_container
-  

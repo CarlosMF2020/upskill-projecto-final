@@ -1,0 +1,28 @@
+---
+# tasks file for ./roles/dns_server
+
+- name: Install bind9
+  apt:
+    name: 
+      - bind9
+      - bind9utils
+      - bind9-doc
+    state: present
+
+- name: Copy named.conf.local
+  template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+  notify: restart bind9
+
+- name: Create zone file
+  template:
+    src: db.technova.pt.j2
+    dest: /etc/bind/db.technova.pt
+  notify: restart bind9
+
+- name: Ensure BIND options are set
+  template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+  notify: restart bind9

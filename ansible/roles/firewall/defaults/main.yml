@@ -5,9 +5,4 @@ firewall_ssh_port: 22
 firewall_allowed_tcp_ports:
   - 80
   - 443
-  - 53
 firewall_allowed_tcp_ports_extra: []
-
-firewall_allowed_udp_ports:
-  - 53
-firewall_allowed_udp_ports_extra: []

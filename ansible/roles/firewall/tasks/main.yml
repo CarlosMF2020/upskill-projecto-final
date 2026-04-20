@@ -43,15 +43,6 @@
   loop: "{{ (firewall_allowed_tcp_ports + firewall_allowed_tcp_ports_extra) | unique }}"
   notify: Save firewall rules
 
-- name: Allow configured UDP ports
-  iptables:
-    chain: INPUT
-    protocol: udp
-    destination_port: "{{ item }}"
-    jump: ACCEPT
-  loop: "{{ (firewall_allowed_udp_ports + firewall_allowed_udp_ports_extra) | unique }}"
-  notify: Save firewall rules
-
 - name: Set default INPUT policy to DROP
   iptables:
     chain: INPUT

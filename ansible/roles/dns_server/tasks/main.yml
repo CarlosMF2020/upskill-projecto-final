@@ -9,6 +9,20 @@
       - bind9-doc
     state: present
 
+- name: Allow DNS UDP
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: 53
+    jump: ACCEPT
+
+- name: Allow DNS TCP
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 53
+    jump: ACCEPT
+
 - name: Copy named.conf.local
   template:
     src: named.conf.local.j2

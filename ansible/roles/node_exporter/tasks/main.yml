@@ -1,0 +1,84 @@
+---
+# tasks file for roles/node_exporter
+
+# - name: Allow established connections
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     ctstate: ESTABLISHED,RELATED
+#     jump: ACCEPT
+    
+- name: Allow Node Exporter only from Prometheus
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    # source: 192.168.10.40
+    destination_port: 9100
+    # ctstate: NEW
+    jump: ACCEPT
+    # comment: "Allow Prometheus to scrape Node Exporter"
+
+# - name: Drop everything else
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     jump: DROP
+
+# - name: Allow SSH
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     protocol: tcp
+#     destination_port: 22
+#     ctstate: NEW
+#     jump: ACCEPT
+
+- name: Create node_exporter user
+  user:
+    name: node_exporter
+    shell: /bin/false
+
+- name: Download node_exporter
+  get_url:
+    url: https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
+    dest: /tmp/node_exporter.tar.gz
+
+- name: Extract node_exporter
+  unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp
+    remote_src: yes
+  register: node_exporter_unpack
+
+- name: Find extracted node_exporter folder
+  find:
+    paths: /tmp
+    patterns: "node_exporter-*"
+    file_type: directory
+  register: extracted_dir
+
+- name: Move node_exporter binary
+  copy:
+    src: "{{ extracted_dir.files[0].path }}/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    mode: '0755'
+    remote_src: yes
+  become: true
+
+- name: Create systemd service
+  copy:
+    dest: /etc/systemd/system/node_exporter.service
+    content: |
+      [Unit]
+      Description=Node Exporter
+      After=network.target
+
+      [Service]
+      User=node_exporter
+      ExecStart=/usr/local/bin/node_exporter
+
+      [Install]
+      WantedBy=default.target
+
+- name: Start service
+  systemd:
+    name: node_exporter
+    enabled: yes
+    state: started

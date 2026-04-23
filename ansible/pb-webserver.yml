@@ -14,8 +14,10 @@
     # Database container must be created first because 
     # it creates the network used by the web server
     - mysql_container
+
     - phpmyadmin_container
 
+    # Gerar certificado para Nginx
     - role: ssl_certificate
       vars:
         # Path to save SSL certificates and Keys on host

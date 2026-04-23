@@ -1,0 +1,5 @@
+<VirtualHost *:80>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://192.168.10.20:8443%{REQUEST_URI} [L,R=301]
+</VirtualHost>

@@ -1,2 +1,5 @@
 ---
 # defaults file for roles/phpmyadmin_container
+
+phpmyadmin_ssl_cert_path: "/opt/webserver/phpmyadmin/ssl"
+phpmyadmin_server_conf_path: "/opt/webserver/phpmyadmin/ssl/apache_conf"

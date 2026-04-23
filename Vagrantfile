@@ -23,15 +23,7 @@ Vagrant.configure("2") do |config|
     auto.vm.provision "shell", path: "scripts/provision/bootstrap_control_node.sh"
   end
 
-  # Infra Server
-  config.vm.define "infra" do |infra|
-    infra.vm.hostname = "infra"
-    infra.vm.network "private_network", ip: "192.168.10.10"
-
-    infra.vm.provision "shell", path: "scripts/provision/bootstrap_nodes.sh"
-  end
-
-  # App Server
+    # App Server
   config.vm.define "app" do |app|
     app.vm.hostname = "app"
     app.vm.network "private_network", ip: "192.168.10.20"
@@ -41,10 +33,20 @@ Vagrant.configure("2") do |config|
     app.vm.provision "shell", path: "scripts/provision/bootstrap_nodes.sh"
   end
 
+  # Infra Server
+  config.vm.define "infra" do |infra|
+    infra.vm.hostname = "infra"
+    infra.vm.network "private_network", ip: "192.168.10.10"
+
+    infra.vm.provision "shell", path: "scripts/provision/bootstrap_nodes.sh"
+  end
+
   # Monitoring Server
   config.vm.define "monitor" do |monitor|
     monitor.vm.hostname = "monitor"
     monitor.vm.network "private_network", ip: "192.168.10.40"
+
+    monitor.vm.synced_folder "./grafana-data", "/var/lib/grafana"
 
     monitor.vm.provision "shell", path: "scripts/provision/bootstrap_nodes.sh"
   end 

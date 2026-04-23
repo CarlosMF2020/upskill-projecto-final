@@ -1,0 +1,75 @@
+---
+# tasks file for roles/prometheus
+
+# Allow established traffic
+# - name: Allow established connections
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     ctstate: ESTABLISHED,RELATED
+#     jump: ACCEPT
+
+# Allow Prometheus UI from subnet
+- name: Allow Prometheus UI from monitoring subnet
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    # source: 192.168.10.0/24
+    destination_port: 9090
+    # ctstate: NEW
+    jump: ACCEPT
+
+# Drop everything else
+# - name: Drop all other traffic
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     jump: DROP
+
+# - name: Allow SSH
+#   ansible.builtin.iptables:
+#     chain: INPUT
+#     protocol: tcp
+#     destination_port: 22
+#     ctstate: NEW
+#     jump: ACCEPT
+
+- name: Create prometheus user
+  user:
+    name: prometheus
+    shell: /bin/false
+
+- name: Download Prometheus
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz
+    dest: /tmp/prometheus.tar.gz
+
+- name: Extract Prometheus
+  unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /opt
+    remote_src: yes
+
+- name: Copy Prometheus config
+  template:
+    src: prometheus.yml.j2
+    dest: /opt/prometheus-2.51.0.linux-amd64/prometheus.yml
+
+- name: Create Prometheus systemd service
+  copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus
+      After=network.target
+
+      [Service]
+      ExecStart=/opt/prometheus-2.51.0.linux-amd64/prometheus \
+        --config.file=/opt/prometheus-2.51.0.linux-amd64/prometheus.yml
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Start Prometheus service
+  systemd:
+    name: prometheus
+    enabled: yes
+    state: started

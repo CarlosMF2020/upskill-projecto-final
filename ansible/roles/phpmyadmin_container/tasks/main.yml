@@ -1,13 +1,78 @@
----
-# tasks file for roles/phpmyadmin_container
+# ---
+# # tasks file for roles/phpmyadmin_container
+
+- name: Create SSL directory on host
+  file:
+    path: "{{ phpmyadmin_ssl_cert_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Create Apache2 config directory on host
+  file:
+    path: "{{ phpmyadmin_server_conf_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Import ssl_certificate role
+  import_role:
+    name: ssl_certificate
+  vars:
+    # Path to save SSL certificates and Keys on host
+    # (Create a volume if using containers and map this 
+    # path with the one used by your container)
+    ssl_cert_path: "{{ phpmyadmin_ssl_cert_path }}"
+
+    # Name of the files to create 
+    # (ex: ssl_cert_name.crt + ssl_cert_name.csr + ssl_cert_name.key)
+    ssl_cert_name: phpmyadmin_ssl_cert
+
+    ssl_common_name: "{{ inventory_hostname }}"
+    ssl_country: "PT"
+    ssl_state: "Porto"
+    ssl_locality: "Maia"
+    ssl_org: "technova.pt"
+    ssl_org_unit: "SysAdmin"
+
+    ssl_valid_days: 365
+
+    ssl_key_size: 2048
+    ssl_force_regenerate: false
+
+
+- name: Deploy apache2 HTTPS config
+  template:
+    src: ssl.conf.j2
+    dest: "{{ phpmyadmin_server_conf_path }}/default-ssl.conf"
+
+- name: Deploy apache2 HTTP config
+  template:
+    src: 000-default.conf.j2
+    dest: "{{ phpmyadmin_server_conf_path }}/000-default.conf"
+
 
 - name: Create phpMyAdmin container
   community.docker.docker_container:
     name: phpmyadmin
     image: phpmyadmin/phpmyadmin
+    state: started
     restart_policy: always
     ports:
       - "8088:80"
+      - "8443:443"
+    volumes:
+      - "{{ phpmyadmin_ssl_cert_path }}:/etc/apache2/ssl:ro"
+      - "{{ phpmyadmin_server_conf_path }}/default-ssl.conf:/etc/apache2/sites-available/default-ssl.conf:ro"
+      - "{{ phpmyadmin_server_conf_path }}/000-default.conf:/etc/apache2/sites-available/000-default.conf:ro"
+
+    command: >
+      bash -c "
+      mkdir -p /etc/apache2/ssl &&
+      a2enmod ssl &&
+      a2enmod rewrite &&
+      a2ensite default-ssl &&
+      exec /docker-entrypoint.sh apache2-foreground
+      "
+    
     env:
       PMA_HOST: "mysql"
       PMA_PORT: "3306"

@@ -1,0 +1,16 @@
+- hosts: all
+  roles:
+    - node_exporter
+  become: true
+
+- hosts: app
+  roles:
+    - docker
+    - cadvisor
+  become: true  
+
+- hosts: monitor
+  roles:
+    - prometheus
+    - grafana
+  become: true  

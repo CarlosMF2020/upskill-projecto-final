@@ -1,0 +1,12 @@
+<VirtualHost *:443>
+    DocumentRoot /var/www/html
+
+    SSLEngine on
+    SSLCertificateFile /etc/apache2/ssl/phpmyadmin_ssl_cert.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/phpmyadmin_ssl_cert.key
+
+    <Directory /var/www/html>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>

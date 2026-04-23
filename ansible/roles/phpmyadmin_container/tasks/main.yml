@@ -26,7 +26,7 @@
     # (ex: ssl_cert_name.crt + ssl_cert_name.csr + ssl_cert_name.key)
     ssl_cert_name: phpmyadmin_ssl_cert
 
-    ssl_common_name: "{{ inventory_hostname }}"
+    ssl_common_name: "phpmyadmin.{{ inventory_hostname }}"
     ssl_country: "PT"
     ssl_state: "Porto"
     ssl_locality: "Maia"

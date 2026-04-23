@@ -1,0 +1,28 @@
+server {
+    listen 80;
+    server_name localhost;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    root /var/www/html;
+    index index.php index.html;
+
+    ssl_certificate    {{ ssl_cert_path }}/{{ ssl_cert_name }}.crt;
+    ssl_certificate_key {{ ssl_cert_path }}/{{ ssl_cert_name }}.key;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass php83:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+}

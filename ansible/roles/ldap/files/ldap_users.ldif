@@ -1,4 +1,4 @@
-# Utilizador técnico sysadmin
+# Technical user sysadmin
 dn: uid=sysadmin,ou=users,dc=technova,dc=local
 objectClass: top
 objectClass: inetOrgPerson
@@ -11,9 +11,8 @@ uidNumber: 10000
 gidNumber: 5000
 homeDirectory: /home/sysadmin
 loginShell: /bin/bash
-userPassword: Sysadmin2026!
 
-# Utilizador técnico operator
+# Technical user operator
 dn: uid=operator,ou=users,dc=technova,dc=local
 objectClass: top
 objectClass: inetOrgPerson
@@ -26,4 +25,3 @@ uidNumber: 10001
 gidNumber: 5000
 homeDirectory: /home/operator
 loginShell: /bin/bash
-userPassword: Operator2026!

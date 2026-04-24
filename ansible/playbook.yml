@@ -7,11 +7,10 @@
     - operator
     - security
     - firewall
+    - backup
 
 - hosts: infra
   become: true
   roles:
     - ldap
-    - samba
-
-  
+    - samba  

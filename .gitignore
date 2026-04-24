@@ -7,3 +7,4 @@ ansible/id_rsa.pub
 *.retry
 ansible/roles/mysql_container/defaults/main.yml
 ansible/roles/nginx_container/templates/index.php
+ca.crt

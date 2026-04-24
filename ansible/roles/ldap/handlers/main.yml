@@ -1,6 +1,14 @@
 ---
 # handlers file for roles/ldap
--   name: Restart Apache
-    service:
-      name: apache2
-      state: restarted
+- name: Restart slapd
+  service:
+    name: slapd
+    state: restarted
+
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted
+
+- name: Update CA certificates
+  command: update-ca-certificates

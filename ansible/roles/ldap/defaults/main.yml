@@ -4,4 +4,17 @@ ldap_bootstrap_users: true
 ldap_domain: technova.local
 ldap_base_dn: dc=technova,dc=local
 ldap_organization: TechNova
-ldap_admin_password: LdapAdmin2026!
+ldap_server_ip: 192.168.10.10
+
+# Sensitive variables: see role README for security recommendations
+ldap_admin_password: "Sysadmin2026!"
+ldap_sysadmin_password: "Sysadmin2026!"
+ldap_operator_password: "Sysadmin2026!"
+
+# TLS
+ldap_tls_enabled: true
+ldap_ca_dir: /etc/ssl/technova-ca
+ldap_certs_dir: /etc/ldap/certs
+ldap_server_fqdn: ldap.technova.local
+ldap_cert_days: 825
+ldap_ca_days: 3650

@@ -4,7 +4,7 @@
 
 set -e
 
-echo "→ Installing LAM and dependencies..."
+echo "*** Installing LAM and dependencies..."
 apt-get install -y \
     ldap-account-manager \
     php \
@@ -12,7 +12,7 @@ apt-get install -y \
     php-fpm \
     nginx
 
-echo "→ Stopping Apache if running..."
+echo "*** Stopping Apache if running..."
 systemctl stop apache2 2>/dev/null || true
 systemctl disable apache2 2>/dev/null || true
 
@@ -21,9 +21,9 @@ PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null \
           || ls /etc/php/ 2>/dev/null | sort -V | tail -1 \
           || echo "8.3")
 PHP_FPM_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
-echo "→ PHP ${PHP_VER} detected (socket: ${PHP_FPM_SOCK})"
+echo "*** PHP ${PHP_VER} detected (socket: ${PHP_FPM_SOCK})"
 
-echo "→ Restoring main nginx.conf..."
+echo "*** Restoring main nginx.conf..."
 cat > /etc/nginx/nginx.conf << 'MAIN_CONF'
 user www-data;
 worker_processes auto;
@@ -40,7 +40,7 @@ http {
     types_hash_max_size 2048;
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
     access_log /var/log/nginx/access.log;
     error_log /var/log/nginx/error.log;
@@ -50,17 +50,30 @@ http {
 }
 MAIN_CONF
 
-echo "→ Configuring Nginx for LAM..."
+echo "*** Configuring Nginx for LAM (HTTPS)..."
 cat > /etc/nginx/sites-available/lam << 'NGINX_CONF'
 server {
     listen 80;
     server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ldap.technova.local 192.168.10.10;
+
+    ssl_certificate     /etc/ldap/certs/ldap.crt;
+    ssl_certificate_key /etc/ldap/certs/ldap.key;
+
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
 
     root /usr/share/ldap-account-manager;
     index index.html;
 
     location = / {
-        return 301 /templates/login.php;
+        return 301 /templates/lists/list.php?type=user;
     }
 
     location / {
@@ -79,17 +92,17 @@ NGINX_CONF
 # Replace placeholder with actual PHP-FPM socket
 sed -i "s|__PHP_FPM_SOCK__|${PHP_FPM_SOCK}|g" /etc/nginx/sites-available/lam
 
-echo "→ Enabling LAM site in Nginx..."
+echo "*** Enabling LAM site in Nginx..."
 ln -sf /etc/nginx/sites-available/lam /etc/nginx/sites-enabled/lam
 rm -f /etc/nginx/sites-enabled/default
 
-echo "→ Starting PHP-FPM and Nginx..."
+echo "*** Starting PHP-FPM and Nginx..."
 systemctl enable "php${PHP_VER}-fpm"
 systemctl start  "php${PHP_VER}-fpm"
 systemctl enable nginx
 systemctl restart nginx
 
-echo "→ Configuring LAM profile for TechNova..."
+echo "*** Configuring LAM profile for TechNova..."
 LAM_CONF_DIR="/var/lib/ldap-account-manager/config"
 mkdir -p "$LAM_CONF_DIR"
 
@@ -97,15 +110,16 @@ cat > "${LAM_CONF_DIR}/lam.conf" << 'LAM_PROFILE'
 # LAM profile — TechNova
 ServerURL: ldap://127.0.0.1:389
 Admins: uid=sysadmin,ou=users,dc=technova,dc=local
-Passwd: Sysadmin2026!
+Passwd: __LAM_CONFIG_PASSWORD__
 defaultLanguage: en_GB.utf8
 usersuffix: ou=users,dc=technova,dc=local
 groupsuffix: ou=groups,dc=technova,dc=local
+treesuffix: dc=technova,dc=local
 loginMethod: search
 loginSearchSuffix: dc=technova,dc=local
 loginSearchFilter: (&(uid=%USER%)(uid=sysadmin))
 loginSearchDN: cn=admin,dc=technova,dc=local
-loginSearchPassword: manager
+loginSearchPassword: __LDAP_ADMIN_PASSWORD__
 listAttributes: #uid;#givenName;#sn;#uidNumber;#gidNumber
 types: suffix_user: ou=users,dc=technova,dc=local
 types: attr_user: #uid;#givenName;#sn;#uidNumber;#gidNumber
@@ -124,11 +138,11 @@ moduleSettings: posixAccount_group_maxGID: 5999
 tools: tool_hide_toolLamdaemon: false
 LAM_PROFILE
 
-echo "→ Setting correct permissions..."
+echo "*** Setting correct permissions..."
 chown -R www-data:www-data /var/lib/ldap-account-manager/
 chmod -R 750 /var/lib/ldap-account-manager/
 
-echo "✓ LAM successfully installed"
-echo "  Access at: http://192.168.10.10"
-echo "  LAM login: sysadmin / Sysadmin2026!"
-echo "  LAM config password: Sysadmin2026!"
+echo "  LAM successfully installed"
+echo "  Access at: https://192.168.10.10"
+echo "  LAM login: sysadmin (password defined via Ansible Vault)"
+echo "  LAM config password: defined via Ansible Vault"

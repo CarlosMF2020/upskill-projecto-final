@@ -1,0 +1,13 @@
+dn: cn=config
+changetype: modify
+replace: olcTLSCACertificateFile
+olcTLSCACertificateFile: {{ ldap_ca_dir }}/ca.crt
+-
+replace: olcTLSCertificateFile
+olcTLSCertificateFile: {{ ldap_certs_dir }}/ldap.crt
+-
+replace: olcTLSCertificateKeyFile
+olcTLSCertificateKeyFile: {{ ldap_certs_dir }}/ldap.key
+-
+replace: olcTLSVerifyClient
+olcTLSVerifyClient: never

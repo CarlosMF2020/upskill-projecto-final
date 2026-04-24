@@ -2,7 +2,7 @@
 # tasks file for roles/ldap
 
 # -------------------------------
-# This role installs and configures OpenLDAP on the LDAP server.
+# This role installs and configures OpenLDAP.
 # -------------------------------
 
 - name: Install OpenLDAP and dependencies
@@ -27,11 +27,11 @@
   loop:
     - { question: "slapd/domain",        value: "technova.local", vtype: "string"   }
     - { question: "shared/organization", value: "TechNova",       vtype: "string"   }
-    - { question: "slapd/password1",     value: "manager",        vtype: "password" }
-    - { question: "slapd/password2",     value: "manager",        vtype: "password" }
+    - { question: "slapd/password1",     value: "{{ ldap_admin_password }}", vtype: "password" }
+    - { question: "slapd/password2",     value: "{{ ldap_admin_password }}", vtype: "password" }
 
 # -------------------------------
-# Controlled reset — only on first provision
+# Controlled reset, only on first provision
 # If LDAP database already exists, skip reset to preserve data
 # -------------------------------
 - name: Check if LDAP database already exists
@@ -73,6 +73,27 @@
     port: 389
     timeout: 30
 
+- name: Generate LDAP admin password hash
+  command: slappasswd -s "{{ ldap_admin_password }}"
+  register: ldap_admin_pw_hash
+  changed_when: false
+  no_log: true
+
+- name: Write admin password reset ldif
+  copy:
+    dest: /tmp/ldap_admin_pw.ldif
+    content: |
+      dn: olcDatabase={1}mdb,cn=config
+      changetype: modify
+      replace: olcRootPW
+      olcRootPW: {{ ldap_admin_pw_hash.stdout }}
+    mode: '0600'
+  no_log: true
+
+- name: Ensure LDAP admin password is correct
+  command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/ldap_admin_pw.ldif
+  changed_when: false
+
 # -------------------------------
 # LDAP Schemas
 # Note: In Ubuntu 24.04, the cosine, nis, and inetorgperson schemas
@@ -108,8 +129,8 @@
 - name: Apply LDAP base structure
   command: >
     ldapadd -x
-    -D "cn=admin,dc=technova,dc=local"
-    -w manager
+    -D "cn=admin,{{ ldap_base_dn }}"
+    -w "{{ ldap_admin_password }}"
     -f /tmp/ldap_base.ldif
   register: ldap_base
   failed_when: ldap_base.rc != 0 and 'Already exists' not in ldap_base.stderr
@@ -126,8 +147,8 @@
 - name: Apply LDAP groups
   command: >
     ldapadd -x
-    -D "cn=admin,dc=technova,dc=local"
-    -w manager
+    -D "cn=admin,{{ ldap_base_dn }}"
+    -w "{{ ldap_admin_password }}"
     -f /tmp/ldap_groups.ldif
   register: ldap_groups
   failed_when: ldap_groups.rc != 0 and 'Already exists' not in ldap_groups.stderr
@@ -145,11 +166,14 @@
 - name: Apply unique uidNumber constraint
   command: ldapadd -Y EXTERNAL -H ldapi:/// -f /tmp/ldap_unique_uid.ldif
   register: unique_uid
-  failed_when: unique_uid.rc != 0 and 'Already exists' not in unique_uid.stderr
+  failed_when: >
+    unique_uid.rc != 0 and
+    'Already exists' not in unique_uid.stderr and
+    'handler exited with 1' not in unique_uid.stderr
   changed_when: unique_uid.rc == 0
 
 # -------------------------------
-# Bootstrap users (technicians - sysadmin/operator)
+# Bootstrap users (technicians: sysadmin/operator)
 # -------------------------------
 - name: Copy LDAP bootstrap users
   copy:
@@ -160,8 +184,8 @@
 - name: Apply LDAP bootstrap users
   command: >
     ldapadd -x
-    -D "cn=admin,dc=technova,dc=local"
-    -w manager
+    -D "cn=admin,{{ ldap_base_dn }}"
+    -w "{{ ldap_admin_password }}"
     -f /tmp/ldap_users.ldif
   register: ldap_users
   failed_when: ldap_users.rc != 0 and 'Already exists' not in ldap_users.stderr
@@ -169,16 +193,16 @@
   when: ldap_bootstrap_users | default(false)
 
 # -------------------------------
-# Ensure bootstrap user passwords are stored as SSHA (idempotent)
+# Ensure bootstrap user passwords are stored as SSHA
 # -------------------------------
 - name: Set sysadmin LDAP password (SSHA)
   command: >
     ldappasswd -x
     -H ldap://127.0.0.1
-    -D "cn=admin,dc=technova,dc=local"
-    -w manager
-    -s "Sysadmin2026!"
-    "uid=sysadmin,ou=users,dc=technova,dc=local"
+    -D "cn=admin,{{ ldap_base_dn }}"
+    -w "{{ ldap_admin_password }}"
+    -s "{{ ldap_sysadmin_password }}"
+    "uid=sysadmin,ou=users,{{ ldap_base_dn }}"
   changed_when: false
   when: ldap_bootstrap_users | default(false)
 
@@ -186,15 +210,15 @@
   command: >
     ldappasswd -x
     -H ldap://127.0.0.1
-    -D "cn=admin,dc=technova,dc=local"
-    -w manager
-    -s "Operator2026!"
-    "uid=operator,ou=users,dc=technova,dc=local"
+    -D "cn=admin,{{ ldap_base_dn }}"
+    -w "{{ ldap_admin_password }}"
+    -s "{{ ldap_operator_password }}"
+    "uid=operator,ou=users,{{ ldap_base_dn }}"
   changed_when: false
   when: ldap_bootstrap_users | default(false)
 
 # -------------------------------
-# ACL — sysadmin with write access to LDAP (to manage users via LAM)
+# ACL: sysadmin with write access to LDAP (to manage users via LAM)
 # -------------------------------
 - name: Copy sysadmin ACL
   copy:
@@ -206,6 +230,146 @@
   register: sysadmin_acl
   failed_when: sysadmin_acl.rc != 0 and 'Type or value exists' not in sysadmin_acl.stderr
   changed_when: sysadmin_acl.rc == 0
+
+# -------------------------------
+# Internal CA + CA-signed certificate (not self-signed)
+# Flow: CA key -> CA cert (self-signed) -> server key -> CSR -> CA signs -> ldap.crt
+# -------------------------------
+- name: Install OpenSSL dependencies
+  apt:
+    name:
+      - openssl
+      - ssl-cert
+    state: present
+  when: ldap_tls_enabled | default(false)
+
+- name: Create certificate directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: openldap
+    mode: '0750'
+  loop:
+    - "{{ ldap_ca_dir }}"
+    - "{{ ldap_certs_dir }}"
+  when: ldap_tls_enabled | default(false)
+
+- name: Generate CA private key
+  command: openssl genrsa -out {{ ldap_ca_dir }}/ca.key 4096
+  args:
+    creates: "{{ ldap_ca_dir }}/ca.key"
+  when: ldap_tls_enabled | default(false)
+
+- name: Generate CA certificate (the only self-signed part)
+  command: >
+    openssl req -new -x509
+    -key {{ ldap_ca_dir }}/ca.key
+    -out {{ ldap_ca_dir }}/ca.crt
+    -days {{ ldap_ca_days }}
+    -subj "/C=PT/ST=Lisboa/L=Lisboa/O={{ ldap_organization }}/OU=IT/CN={{ ldap_organization }} Internal CA"
+  args:
+    creates: "{{ ldap_ca_dir }}/ca.crt"
+  when: ldap_tls_enabled | default(false)
+
+- name: Protect CA private key
+  file:
+    path: "{{ ldap_ca_dir }}/ca.key"
+    owner: root
+    group: root
+    mode: '0400'
+  when: ldap_tls_enabled | default(false)
+
+- name: Generate LDAP server private key
+  command: openssl genrsa -out {{ ldap_certs_dir }}/ldap.key 2048
+  args:
+    creates: "{{ ldap_certs_dir }}/ldap.key"
+  when: ldap_tls_enabled | default(false)
+
+- name: Create SAN extensions file
+  copy:
+    dest: /tmp/ldap_san.cnf
+    content: |
+      [req]
+      req_extensions = v3_req
+      distinguished_name = req_distinguished_name
+
+      [req_distinguished_name]
+
+      [v3_req]
+      subjectAltName = @alt_names
+      keyUsage = digitalSignature, keyEncipherment
+      extendedKeyUsage = serverAuth
+
+      [alt_names]
+      DNS.1 = {{ ldap_server_fqdn }}
+      IP.1  = {{ ldap_server_ip }}
+  when: ldap_tls_enabled | default(false)
+
+- name: Generate LDAP server CSR
+  command: >
+    openssl req -new
+    -key {{ ldap_certs_dir }}/ldap.key
+    -out /tmp/ldap.csr
+    -subj "/C=PT/ST=Lisboa/L=Lisboa/O={{ ldap_organization }}/OU=IT/CN={{ ldap_server_fqdn }}"
+    -config /tmp/ldap_san.cnf
+  args:
+    creates: /tmp/ldap.csr
+  when: ldap_tls_enabled | default(false)
+
+- name: Sign CSR with CA to generate CA-signed certificate
+  command: >
+    openssl x509 -req
+    -in /tmp/ldap.csr
+    -CA {{ ldap_ca_dir }}/ca.crt
+    -CAkey {{ ldap_ca_dir }}/ca.key
+    -CAcreateserial
+    -out {{ ldap_certs_dir }}/ldap.crt
+    -days {{ ldap_cert_days }}
+    -extensions v3_req
+    -extfile /tmp/ldap_san.cnf
+  args:
+    creates: "{{ ldap_certs_dir }}/ldap.crt"
+  when: ldap_tls_enabled | default(false)
+
+- name: Set server certificate permissions
+  file:
+    path: "{{ item.path }}"
+    owner: root
+    group: openldap
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ ldap_certs_dir }}/ldap.crt", mode: '0640' }
+    - { path: "{{ ldap_certs_dir }}/ldap.key", mode: '0640' }
+    - { path: "{{ ldap_ca_dir }}/ca.crt",      mode: '0644' }
+  when: ldap_tls_enabled | default(false)
+
+- name: Copy TLS configuration LDIF template
+  template:
+    src: ldap_tls.ldif.j2
+    dest: /tmp/ldap_tls.ldif
+  when: ldap_tls_enabled | default(false)
+
+- name: Apply TLS configuration to slapd
+  command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/ldap_tls.ldif
+  register: ldap_tls_result
+  failed_when: >
+    ldap_tls_result.rc != 0 and
+    'Type or value exists' not in ldap_tls_result.stderr
+  changed_when: ldap_tls_result.rc == 0
+  notify: Restart slapd
+  when: ldap_tls_enabled | default(false)
+
+- name: Add CA to system trust store
+  copy:
+    src: "{{ ldap_ca_dir }}/ca.crt"
+    dest: /usr/local/share/ca-certificates/technova-ca.crt
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Update CA certificates
+  when: ldap_tls_enabled | default(false)
 
 # -------------------------------
 # LAM — LDAP Account Manager
@@ -233,6 +397,14 @@
 # Restrict LAM login to sysadmin only
 # operator remains visible in user listings but cannot login
 # -------------------------------
+- name: Set LAM LDAP search password
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^loginSearchPassword:'
+    line: 'loginSearchPassword: {{ ldap_admin_password }}'
+  become: true
+  no_log: true
+
 - name: Restrict LAM login to sysadmin only — Admins
   lineinfile:
     path: /var/lib/ldap-account-manager/config/lam.conf
@@ -245,6 +417,13 @@
     path: /var/lib/ldap-account-manager/config/lam.conf
     regexp: '^loginSearchFilter:'
     line: 'loginSearchFilter: (&(uid=%USER%)(uid=sysadmin))'
+  become: true
+
+- name: Configure LAM tree suffix
+  lineinfile:
+    path: /var/lib/ldap-account-manager/config/lam.conf
+    regexp: '^treesuffix:'
+    line: 'treesuffix: dc=technova,dc=local'
   become: true
 
 # -------------------------------
@@ -262,7 +441,7 @@
   lineinfile:
     path: /var/lib/ldap-account-manager/config/lam.conf
     regexp: '^scriptServer:'
-    line: 'scriptServer: 192.168.10.10'
+    line: 'scriptServer: {{ ldap_server_ip }}'
   become: true
 
 - name: Configure LAM script user (lamdaemon)
@@ -291,4 +470,4 @@
 
 - name: Inform LAM URL
   debug:
-    msg: "LDAP user management: http://192.168.10.10 — Login: sysadmin only"
+    msg: "LDAP user management: http://{{ ldap_server_ip }} — Login: sysadmin only"

@@ -1,12 +1,11 @@
 services:
   nginx:
-    image: nginx:latest
+    image: tricolorsimba/my_nginx:latest
     container_name: "{{ nginx_container_name }}"
     ports:
       - "{{ nginx_host_port }}:{{ nginx_container_port }}"
       - "{{ nginx_host_port_https }}:{{ nginx_container_port_https }}"
     volumes:
-      - "{{ nginx_html_path }}:/var/www/html"
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - /opt/webserver/nginx/ssl:/etc/nginx/ssl
     restart: unless-stopped
@@ -16,9 +15,8 @@ services:
       - "{{ webserver_network }}"
 
   php83:
-    image: php:8.3-fpm
-    volumes:
-      - "{{ nginx_html_path }}:/var/www/html"
+    image: tricolorsimba/php_8.3-fpm:latest
+
     networks:
       - "{{ webserver_network }}"
 

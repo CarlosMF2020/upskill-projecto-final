@@ -18,4 +18,4 @@
 
     - phpmyadmin_container
         
-    - nginx_container
+    - my_nginx_container

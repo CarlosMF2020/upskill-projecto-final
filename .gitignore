@@ -8,3 +8,4 @@ ansible/id_rsa.pub
 ansible/roles/mysql_container/defaults/main.yml
 ansible/roles/nginx_container/templates/index.php
 ca.crt
+ansible/roles/my_nginx_container/vars/main.yml

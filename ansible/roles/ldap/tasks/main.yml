@@ -100,7 +100,7 @@
 # are already included by default in slapd after dpkg-reconfigure.
 # The tasks below are idempotent, they ignore if they already exist.
 # -------------------------------
-- name: Load cosine schema
+- name: Load cosine schemaf
   command: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/cosine.ldif
   register: schema_cosine
   failed_when: schema_cosine.rc != 0 and 'Already exists' not in schema_cosine.stderr and 'Duplicate' not in schema_cosine.stderr
@@ -128,9 +128,9 @@
 
 - name: Apply LDAP base structure
   command: >
-    ldapadd -x
+    ldapadd -x 
     -D "cn=admin,{{ ldap_base_dn }}"
-    -w "{{ ldap_admin_password }}"
+    -wSysadmin2026!
     -f /tmp/ldap_base.ldif
   register: ldap_base
   failed_when: ldap_base.rc != 0 and 'Already exists' not in ldap_base.stderr

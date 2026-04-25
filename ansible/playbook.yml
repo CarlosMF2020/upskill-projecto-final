@@ -7,7 +7,7 @@
     - operator
     - security
     - firewall
-    - backup
+    # - backup
 
 - hosts: infra
   become: true

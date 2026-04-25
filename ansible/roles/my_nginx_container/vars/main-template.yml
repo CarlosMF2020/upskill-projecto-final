@@ -1,0 +1,5 @@
+---
+# vars file for roles/nginx_container
+
+dockerhub_username: ""
+dockerhub_password: ""

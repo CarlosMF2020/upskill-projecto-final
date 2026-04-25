@@ -16,7 +16,7 @@
 
 - name: Pull PHP 8.3 FPM image
   community.docker.docker_image:
-    name: php:8.3-fpm
+    name: tricolorsimba/php_8.3-fpm:latest
     source: pull  
 
 - name: Ensure project directories exist
@@ -33,25 +33,25 @@
     - "{{ nginx_html_path }}"
   become: yes
 
-- name: Ensure html directory exists
-  file:
-    path: "{{ nginx_html_path }}"
-    state: directory
-    mode: '0755'
+# - name: Ensure html directory exists
+#   file:
+#     path: "{{ nginx_html_path }}"
+#     state: directory
+#     mode: '0755'
 
-- name: Check if index.php exists
-  stat:
-    path: "{{ nginx_html_path }}/index.php"
-  register: index_php_file
+# - name: Check if index.php exists
+#   stat:
+#     path: "{{ nginx_html_path }}/index.php"
+#   register: index_php_file
 
-- name: Deploy index.php if it doesn't exist
-  template:
-    src: index.php
-    dest: "{{ nginx_html_path }}"
-  become: yes
-  when: not index_php_file.stat.exists
+# - name: Deploy index.php if it doesn't exist
+#   template:
+#     src: index.php
+#     dest: "{{ nginx_html_path }}"
+#   become: yes
+#   when: not index_php_file.stat.exists
 
-- name: Ensure nginx directory exists
+# - name: Ensure nginx directory exists
   file:
     path: "{{ nginx_project_path }}/nginx"
     state: directory
@@ -70,6 +70,11 @@
   template:
     src: docker-compose.yml.j2
     dest: "{{ nginx_project_path }}/docker-compose.yml"
+
+- name: Login to Docker Hub
+  community.docker.docker_login:
+    username: "{{ dockerhub_username }}"
+    password: "{{ dockerhub_password }}"
 
 - name: Start stack
   community.docker.docker_compose_v2:

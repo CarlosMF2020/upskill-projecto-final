@@ -1,5 +1,8 @@
 ﻿# Upskill-Projecto-Final
 
+
+Esqueci-me de incluir uma imagem no relatório relativamente à configuração do DNS na máquina host. O professor Paulo Mato recomendou colocá-la no repositório remoto, portanto, informo que a imagem tem o nome de "Config-DNS-Host.png" e encontra-se na raíz do projecto, tanto no repositório do GitHub como no do Azure Repos.
+
 ____________________________________________________
 
 Como configurar o MYSQL e fazer o teste no navegador
